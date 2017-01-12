@@ -303,18 +303,110 @@ lienhuadeMacBook-Pro:helloworld_restful_swagger lienhua34$ curl -X POST -k http:
 
 ## swagger UI
 
-[Swagger](https://github.com/swagger-api/swagger-ui) 提供了可视化的 API 说明。我们可以在 RESTful JSON API gateway 中添加 swagger。
+### RESTful JSON API 的 Swagger 说明
 
-将 Swagger 源码的 dist 目录下文件拷贝到 third_party/swagger-ui 目录下。
+通过下面命令可以生成 RESTful JSON API 的 swagger 说明文件。
 
-TODO：补充 wagger 的配置。
+```shell
+$ python -m grpc.tools.protoc -I. \
+       -I/usr/local/include \
+       -I$GOPATH/src \
+       -I$GOPATH/src/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+       --swagger_out=logtostderr=true:. \
+       pb/helloworld.proto
+```
 
+该命令在 pb 目录下生成一个 helloworld.swagger.json 文件。我们在 pb 目录下直接新增一个文件 helloworld.swagger.go，然后在里面定义一个常量 Swagger，内容即为 helloworld.swagger.json 的内容。
+
+修改 proxy.go 文件中的 run() 方法来添加一个 API 路由来返回 swagger.json 的内容，
+
+```go
+func run() error {
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/swagger.json", func(w http.ResponseWriter, req *http.Request) {
+		io.Copy(w, strings.NewReader(gw.Swagger))
+	})
+
+	gwmux := runtime.NewServeMux()
+	opts := []grpc.DialOption{grpc.WithInsecure()}
+	err := gw.RegisterGreeterHandlerFromEndpoint(ctx, gwmux, *greeterEndpoint, opts)
+	if err != nil {
+		return err
+	}
+
+    log.Print("Greeter gRPC Server gateway start at port 8080...")
+	http.ListenAndServe(":8080", mux)
+	return nil
+}
+```
+
+重新编译，并启动 RESTful gateway，然后访问 http://localhost:8080/swagger.json 便得到 helloworld RESTful API 的 swagger 说明了。
+
+![](./images/swagger-json.png)
+
+但是，swagger.json 内容显示太不直观了。swagger 提供了非常好的可视化 swagger-ui。我们将 swagger-ui 添加到我们的 gateway 中。
+
+### 下载 swagger-ui 代码
+
+[Swagger](https://github.com/swagger-api/swagger-ui) 提供了可视化的 API 说明。我们可以在 RESTful JSON API gateway 中添加 swagger-ui。
+
+将 Swagger 源码的 dist 目录下包含了 swagger ui 所需的 HTML、css 和 js 代码文件，我们将该目录下的所有文件拷贝到 third_party/swagger-ui 目录下。
+
+### 将 swagger-ui 文件制作成 go 内置文件
+
+我们可以使用 [go-bindata](https://github.com/jteeuwen/go-bindata) 将 swagger-ui 的文件制作成 go 内置的数据文件进行访问。
+
+先安装 go-bindata，
+
+```shell
+$ go get -u github.com/jteeuwen/go-bindata/...
+```
+
+然后将 third-party/swagger-ui 下的所有文件制作成 go 内置数据文件，
+
+```shell
+$ go-bindata --nocompress -pkg swagger -o pkg/ui/data/swagger/datafile.go third_party/swagger-ui/...
+```
+
+生成文件 pkg/ui/data/swagger/datafile.go，
+
+```shell
+$ ls -l pkg/ui/data/swagger/datafile.go 
+-rw-r--r--  1 lienhua34  staff  3912436  1 12 22:56 pkg/ui/data/swagger/datafile.go
+```
+
+### swagger-ui 文件服务器
+
+使用 go-bindata 将 swagger-ui 制作成 go 内置数据文件之后，我们便可以使用 [elazarl/go-bindata-assetfs](https://github.com/elazarl/go-bindata-assetfs) 结合 net/http 来将 swagger-ui 内置数据文件对外提供服务。
+
+安装 elazarl/go-bindata-assetfs，
+
+```shell
+$ go get github.com/elazarl/go-bindata-assetfs/...
+```
+
+然后修改 proxy.go 代码，最终代码请看 [proxy.go](https://github.com/lienhua34/notes//grpc/helloworld_restful_swagger/proxy.go)。
+
+重新编译，然后启动 gateway 服务，在浏览器中输入 http://localhost:8080/swagger-ui，
+
+![](./images/swagger-ui-default.png)
+
+但是上面打开的 swagger-ui 默认打开的是一个 http://petstore.swagger.io/v2/swagger.json 的 API 说明信息。我们需要在输入框中输入我们 API 的地址 http://localhost:8080/swagger.json ，然后点击回车键才能看到我们的 API 说明，
+
+![](./images/swagger-ui-greeter.png)
+
+如果我们想让它打开的时候默认就是我们的 API 说明怎么办？将文件 third_party/swagger-ui/index.html 中的 http://petstore.swagger.io/v2/swagger.json 替换成 http://localhost:8080/swagger.json ，然后重新生成 pkg/ui/data/swagger/datafile.go 文件，再重新编译一下即可。
 
 ## 参考：
 
 - http://www.grpc.io/blog/coreos
 - http://www.grpc.io/docs/quickstart/python.html
 - https://github.com/grpc-ecosystem/grpc-gateway
+- https://github.com/philips/grpc-gateway-example
 
 
 

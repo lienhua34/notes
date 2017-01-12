@@ -1,7 +1,5 @@
 #!/bin/bash
 
-mkdir -p pb
-
 python -m grpc.tools.protoc -I. \
        -I/usr/local/include \
        -I$GOPATH/src \
