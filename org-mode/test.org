@@ -1,0 +1,12 @@
+#+TITLE: clever v2.7 agenda
+#+AUTHOR: lienhua34
+#+CATEGORY: :job:clever:
+
+* clever 平台产品
+** 版本计划
+*** TODO Feature Freeze：规划完成文档、定稿 UI 设计图和任务安排
+    DEADLINE: <2018-03-02 五>
+*** TODO 发布 clever v2.7.0-alpha0：完成 wg gpu-beta0 需要的 GPU 特性
+    DEADLINE: <2018-03-02 五>
+*** TODO 发布 clever v2.7.0-pre1：交付阶段 I 预览版本
+    DEADLINE: <2018-03-12 一>
